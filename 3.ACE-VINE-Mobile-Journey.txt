@@ -1,0 +1,149 @@
+@startuml
+skinparam sequence {
+   ArrowColor Black
+
+   LifeLineBorderColor Black
+   LifeLineBackgroundColor LightBlue
+
+   ParticipantBackgroundColor LightBlue
+   ParticipantBorderColor Black
+}
+actor "ACEUSER" as USER
+actor "COORDINATOR" as CO
+actor "REVIEWER" as PR
+actor "APPROVER" as AP
+participant "ACEUI" as ACEUI
+participant "ACEBACKEND" as ACEBACKEND
+participant "REMEDY" as REMEDY
+
+ACTIVATE ACEUI
+
+== Step 1: Create CRQ Ticket ==
+	USER->ACEUI: Login ACE portal 
+	USER->ACEUI: Put the details to raise Mobile CRQ
+	USER->ACEUI: SUBMIT CRQ
+	ACTIVATE ACEBACKEND
+		ACEUI->ACEBACKEND: EP_V1UpsertCRQ API			
+		ACTIVATE REMEDY
+			ACEBACKEND->REMEDY: EPTIL_V1_ChangeRequestCreate API call (MobileRemedy)
+			REMEDY->ACEBACKEND: Returns CRQ Number
+		DEACTIVATE REMEDY
+		ACEBACKEND->ACEUI: Returns CRQ Number
+	DEACTIVATE ACEBACKEND
+	USER->ACEUI: User can see the CRQ number
+== Step 2: Coordinator ==
+	CO->ACEUI: Login ACE portal 
+	CO->ACEUI: Update the CRQ details, if there is any update requires
+	CO->ACEUI: Add the Peer reviewer	
+	CO->ACEUI: SUBMIT CRQ
+	ACTIVATE ACEBACKEND
+		ACEUI->ACEBACKEND: EP_V1UpsertCRQ API			
+		ACTIVATE REMEDY
+			ACEBACKEND->REMEDY: EPTIL_V1_ChangeRequestCreate API call (FixedRemedy)
+			REMEDY->ACEBACKEND: Returns CRQ Number
+		DEACTIVATE REMEDY
+		ACEBACKEND->ACEUI: Returns CRQ Number	
+
+	ALT #FFC000 Related Fixed Ticket = TRUE
+		ACEUI->ACEBACKEND: EPTIL_V1_GetChangeRequestList API for related Fixed Ticket			
+		ACTIVATE REMEDY
+			ACEBACKEND->REMEDY: EPTIL_V1_GetChangeRequestList API call for related Fixed Ticket
+			REMEDY->ACEBACKEND: Returns CRQ Number and status
+		DEACTIVATE REMEDY
+		ACEBACKEND->ACEUI: Returns CRQ Number and status
+		CO->ACEUI: SUBMIT CRQ if staus = circuit check.
+		ALT #FFC000 FIX CRQ Status != circuit check
+			ACEUI->CO: You cannot submit for peer review.
+		END
+	END
+	DEACTIVATE ACEBACKEND
+	CO->ACEUI: Coordinator can see the CRQ number
+	
+== Step 3: Peer Reviewer ==
+	PR->ACEUI: Login ACE portal 
+	PR->ACEUI: Review the CRQ and Approve or Reject
+	PR->ACEUI: SUBMIT CRQ
+	ACTIVATE ACEBACKEND
+		ACEUI->ACEBACKEND: EP_V1UpsertCRQ API			
+		ACTIVATE REMEDY
+			ACEBACKEND->REMEDY: EPTIL_V1_ChangeRequestCreate API call (MobileRemedy)
+			REMEDY->ACEBACKEND: Returns CRQ Number
+		DEACTIVATE REMEDY
+		ACEBACKEND->ACEUI: Returns CRQ Number
+	DEACTIVATE ACEBACKEND
+	PR->ACEUI: Reviewer can see the CRQ number
+
+== Step 4: Approval Stage ==
+	AP->ACEUI: Login ACE portal
+	AP->ACEUI: Approve/Reject the Change
+	ALT ACTION=APPROVE
+		ACTIVATE ACEBACKEND	
+			ACEUI->ACEBACKEND: Approve the Change (Mobile)
+				ACTIVATE REMEDY
+					ACEBACKEND->REMEDY: Approve the Change (Mobile)
+				DEACTIVATE REMEDY
+	ELSE	
+			ACEUI->ACEBACKEND: Reject the Change (Mobile)
+				ACTIVATE REMEDY
+					ACEBACKEND->REMEDY: Reject the Change (Mobile)
+				DEACTIVATE REMEDY		
+		DEACTIVATE ACEBACKEND
+	END
+== Step 5: Scheduler Stage ==
+	CO->ACEUI: Login ACE portal 
+	
+	ALT ACTION=POSTPONE
+		ALT #FFC000 Related Fixed Ticket = TRUE
+		ACEUI->CO: CRQ can not postpone manually.
+		END
+		CO->ACEUI: Update the CRQ status to Planning In Progress
+		ACTIVATE ACEBACKEND
+				ACEUI->ACEBACKEND: Update CRQ status (Mobile)
+					ACTIVATE REMEDY
+						ACEBACKEND->REMEDY: Update CRQ status (Mobile)
+					DEACTIVATE REMEDY	
+		DEACTIVATE ACEBACKEND
+	END	
+== Step 6: Implementation Stage ==
+== Step 7: Complete stage ==
+== Step 8: Close Stage ==	
+
+
+/'
+ 	== Step 2: Create VINE Ticket ==
+CM->ACEUI: CM marks require VINE ticket 
+activate REMEDY
+ACEUI->ACEUI: CM marks require VINE ticket
+ACEUI->REMEDY: CreateCRQ API call (MobileRemedy)
+REMEDY->ACEUI: Returns CRQ Number (VINE Ticket refrence)
+deactivate REMEDY
+ACEUI->CM : Get VINE Ticket refrence
+deactivate ACEUI
+
+'/
+@enduml
+
+
+/' 	ALT SIA Import = TRUE
+		ALT Mobile Impact = TRUE
+			CM->ACEUI: Create related Mobile Ticket
+			ACTIVATE REMEDY
+			ACEUI->REMEDY: Create related Mobile Ticket
+			REMEDY->ACEUI: Returns CRQ Number
+			DEACTIVATE REMEDY
+		END
+ 	END
+	ELSE
+		'deactivate TIL
+	END
+
+ 
+CM->ACEUI: CM marks require VINE ticket 
+activate REMEDY
+ACEUI->ACEUI: CM marks require VINE ticket
+ACEUI->REMEDY: CreateCRQ API call (MobileRemedy)
+REMEDY->ACEUI: Returns CRQ Number (VINE Ticket refrence)
+deactivate REMEDY
+ACEUI->CM : Get VINE Ticket refrence
+deactivate ACEUI	
+'/
